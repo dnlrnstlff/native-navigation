@@ -607,6 +607,14 @@ open class DefaultReactNavigationImplementation: ReactNavigationImplementation {
       if let translucent = boolForKey("translucent", next) {
         navBar.isTranslucent = translucent
       }
+        
+        if let largeTitleDisplayMode = intForKey("largeTitleDisplayMode", next) {
+            if #available(iOS 11.0, *) {
+                navItem.largeTitleDisplayMode = UINavigationItem.LargeTitleDisplayMode(rawValue: largeTitleDisplayMode)!
+            } else {
+                // Fallback on earlier versions
+            }
+        }
 
       //    navigationController?.navigationBar.barStyle = .blackTranslucent
       //    navigationController?.navigationBar.shadowImage = nil
