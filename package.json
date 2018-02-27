@@ -1,6 +1,7 @@
 {
   "name": "native-navigation",
-  "version": "0.2.3",
+  "private": true,
+  "version": "0.2.2",
   "description": "Native Navigation for React Native",
   "main": "index.js",
   "scripts": {
@@ -25,10 +26,6 @@
     "docs:watch": "npm run docs:prepare && gitbook serve",
     "docs:publish": "npm run docs:clean && npm run docs:build && cd _book && git init && git commit --allow-empty -m 'update book' && git fetch https://github.com/airbnb/native-navigation.git gh-pages && git checkout -b gh-pages && git add . && git commit -am 'update book' && git push https://github.com/airbnb/native-navigation.git gh-pages --force",
     "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/airbnb/native-navigation.git"
   },
   "keywords": [],
   "author": "Leland Richardson <leland.richardson@airbnb.com>",
