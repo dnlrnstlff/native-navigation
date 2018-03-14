@@ -79,7 +79,7 @@ open class ReactViewController: UIViewController {
   var dismissResultCode: ReactFlowResultCode?
   var dismissPayload: [String: AnyObject]?
   fileprivate let moduleName: String
-  fileprivate var props: [String: AnyObject]
+  open var props: [String: AnyObject]
   fileprivate let coordinator: ReactNavigationCoordinator = ReactNavigationCoordinator.sharedInstance
   fileprivate var initialConfig: [String: AnyObject]
   fileprivate var prevConfig: [String: AnyObject]
