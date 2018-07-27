@@ -14,7 +14,8 @@ private let VERSION: Int = 2
 @objc(ReactNavigation)
 class ReactNavigation: NSObject {
   fileprivate let coordinator: ReactNavigationCoordinator
-
+	private let DELAY: Int64 = Int64(1.2 * Double(NSEC_PER_SEC))
+	
   override init() {
     coordinator = ReactNavigationCoordinator.sharedInstance
   }
@@ -88,7 +89,7 @@ class ReactNavigation: NSObject {
       }
 
       self.coordinator.registerFlow(pushed, resolve: resolve, reject: reject)
-      nav.pushReactViewController(pushed, animated: animated, makeTransition: makeTransition)
+		nav.pushReactViewController(pushed, animated: animated, delay: self.DELAY, makeTransition: makeTransition)
     }
   }
 
