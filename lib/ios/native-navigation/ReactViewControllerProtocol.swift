@@ -171,7 +171,7 @@ extension UINavigationController {
   public func pushReactViewController(
     _ viewController: ReactViewControllerProtocol,
     animated: Bool,
-    delay: Int64 = DELAY,
+    delay: Int64,
     makeTransition: (() -> ReactSharedElementTransition)?
   ) {
     guard let irvc = viewController as? InternalReactViewControllerProtocol else {
@@ -187,7 +187,7 @@ extension UINavigationController {
   func internalPushReactViewController(
     _ viewController: InternalReactViewControllerProtocol,
     animated: Bool,
-    delay: Int64 = DELAY,
+    delay: Int64,
     makeTransition: (() -> ReactSharedElementTransition)?) {
 
     // we debounce this call globally
