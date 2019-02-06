@@ -6,8 +6,10 @@
 //  Copyright © 2016 Airbnb. All rights reserved.
 //
 
-import React
 import UIKit
+#if !NN_NO_COCOAPODS
+  import React
+#endif
 
 // MARK: Public
 
@@ -90,15 +92,20 @@ open class ReactViewController: UIViewController {
   fileprivate var statusBarStyle: UIStatusBarStyle = UIStatusBarStyle.default
   fileprivate var statusBarIsDirty: Bool = false
   fileprivate var leadingButtonVisible: Bool = true
+  private var orientation: UIInterfaceOrientationMask = .portrait
   private var barHeight: CGFloat
 
   // MARK: Lifecycle
 
   public convenience init(moduleName: String) {
-    self.init(moduleName: moduleName, props: [:])
+    self.init(moduleName: moduleName, props: [:], title: nil, hidesBottomBarWhenPushed: false)
   }
 
-  public init(moduleName: String, props: [String: AnyObject]) {
+  public convenience init(moduleName: String, props: [String: AnyObject]) {
+    self.init(moduleName: moduleName, props: props, title: nil, hidesBottomBarWhenPushed: false)
+  }
+
+  public init(moduleName: String, props: [String: AnyObject], title: String?, hidesBottomBarWhenPushed: Bool) {
     self.nativeNavigationInstanceId = generateId(moduleName)
     self.moduleName = moduleName
 
@@ -110,6 +117,9 @@ open class ReactViewController: UIViewController {
     self.renderedConfig = EMPTY_MAP
 
     super.init(nibName: nil, bundle: nil)
+
+    self.title = title;
+    self.hidesBottomBarWhenPushed = hidesBottomBarWhenPushed;
 
     if let initialConfig = coordinator.getScreenProperties(moduleName) {
       self.initialConfig = initialConfig
@@ -137,7 +147,6 @@ open class ReactViewController: UIViewController {
   deinit {
     coordinator.unregisterViewController(nativeNavigationInstanceId)
   }
-
 
   // MARK: UIViewController Overrides
 
@@ -172,11 +181,11 @@ open class ReactViewController: UIViewController {
 
   override open func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-
-    if (!self.isMovingToParentViewController) {
-      reconcileScreenConfig()
-    }
-
+    // TODO: Native Navigation - know why this was here
+    // When we have this, the navbar behaviour is inconsistent
+    // if (!self.isMovingToParentViewController) {
+    reconcileScreenConfig()
+    // }
     handleLeadingButtonVisibleChange()
   }
 
@@ -214,8 +223,25 @@ open class ReactViewController: UIViewController {
     }
   }
 
+  override open func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+    super.viewWillTransition(to: size, with: coordinator)
+    let previousSize = self.view.frame.size;
 
+    emitEvent("onViewWillTransition", body: [
+      "width": size.width,
+      "height": size.height,
+      "previousWidth": previousSize.width,
+      "previousHeight": previousSize.height
+    ] as AnyObject)
 
+    coordinator.animate(alongsideTransition: nil, completion: {
+      _ in self.navigationController?.navigationBar.setNeedsLayout()
+    })
+  }
+
+  open func getOrientation() -> UIInterfaceOrientationMask {
+    return self.orientation
+  }
 
   // MARK: Public Setters
 
@@ -235,6 +261,10 @@ open class ReactViewController: UIViewController {
 
   open func setStatusBarAnimation(_ animation: UIStatusBarAnimation) {
     statusBarAnimation = animation
+  }
+
+  public func setOrientation(orientation: UIInterfaceOrientationMask) {
+    self.orientation = orientation
   }
 
   func setLeadingButtonVisible(_ leadingButtonVisible: Bool) {
@@ -277,7 +307,9 @@ open class ReactViewController: UIViewController {
   // this gets fired after things are set up and we are now waiting for the first navigation config from JS
   // to get passed back
   func startedWaitingForRealNavigation() {
-    reconcileScreenConfig()
+    // TODO: know why this was here
+    // This was commented because otherwise, when moving to a transparent navbar, the navbar becomes black
+    // reconcileScreenConfig()
     // TODO(lmr): this is no longer an option in initialConfig
     if let waitForRender = boolForKey("waitForRender", initialConfig) {
       if (!waitForRender && isPendingNavigationTransition) {
@@ -293,7 +325,6 @@ open class ReactViewController: UIViewController {
    * tell the coordinator that presented us to dismiss us.
    */
   public func dismiss(_ payload: [String: AnyObject]) {
-    dismissPayload = payload
     delegate?.didDismiss(self, withPayload: payload)
   }
 
@@ -352,7 +383,11 @@ open class ReactViewController: UIViewController {
   private func updateNavigationImpl(props: [String: AnyObject]) {
     prevConfig = renderedConfig
     renderedConfig = initialConfig.combineWith(values: props)
-    reconcileScreenConfig()
+    // TODO: Navigation implementation does not reload when updating javascript since we commented this.
+    // But if we let it, when moving from a page with a navbar not transparent to a transparent navbar, the first view jumps while it should not be updated
+    if (renderedConfig["enableLiveReload"] as? Bool == true) {
+      reconcileScreenConfig()
+    }
     updateBarHeightIfNeeded()
   }
 
@@ -454,4 +489,3 @@ extension ReactViewController : ReactAnimationToContentVendor {
     )
   }
 }
-

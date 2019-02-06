@@ -6,7 +6,10 @@
 //  Copyright © 2016 Airbnb. All rights reserved.
 //
 
-import React
+import UIKit;
+#if !NN_NO_COCOAPODS
+    import React
+#endif
 
 // MARK: - TabView
 
@@ -79,11 +82,5 @@ final class TabViewManager: RCTViewManager {
   override func view() -> UIView! {
     return TabView()
 //    return TabView(implementation: ReactNavigationCoordinator.sharedInstance.navigation)
-  }
-
-  override func constantsToExport() -> [AnyHashable: Any] {
-    return [
-      "VERSION": VERSION
-    ]
   }
 }

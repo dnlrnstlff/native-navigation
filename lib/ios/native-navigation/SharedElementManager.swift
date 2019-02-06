@@ -6,8 +6,10 @@
 //  Copyright © 2016 Airbnb. All rights reserved.
 //
 
-import React
 import UIKit
+#if !NN_NO_COCOAPODS
+  import React
+#endif
 
 // MARK: - SharedElement
 
@@ -53,9 +55,4 @@ final class SharedElementManager: RCTViewManager {
     return SharedElement()
   }
 
-  override func constantsToExport() -> [AnyHashable: Any] {
-    return [
-      "VERSION": VERSION
-    ]
-  }
 }

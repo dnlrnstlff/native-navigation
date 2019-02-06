@@ -36,6 +36,7 @@ public class ScreenCoordinator {
   private static final String TAG = ScreenCoordinator.class.getSimpleName();
   static final String EXTRA_PAYLOAD = "payload";
   private static final String TRANSITION_GROUP = "transitionGroup";
+  private static final String ADD_TO_BACKSTACK_OPTION = "addToAndroidBackStack";
 
   enum PresentAnimation {
     Modal(R.anim.slide_up, R.anim.delay, R.anim.delay, R.anim.slide_down),
@@ -70,7 +71,7 @@ public class ScreenCoordinator {
   @AnimRes private int nextPopExitAnim;
 
   public ScreenCoordinator(AppCompatActivity activity, ScreenCoordinatorLayout container,
-      @Nullable Bundle savedInstanceState) {
+                           @Nullable Bundle savedInstanceState) {
     this.activity = activity;
     this.container = container;
     container.setFragmentManager(activity.getSupportFragmentManager());
@@ -90,31 +91,84 @@ public class ScreenCoordinator {
     pushScreen(fragment, options);
   }
 
+  public void resetTo(String moduleName, @Nullable Bundle props, @Nullable Bundle options) {
+    Fragment fragment = ReactNativeFragment.newInstance(moduleName, props);
+    resetTo(fragment, options);
+  }
+
   public void pushScreen(Fragment fragment) {
     pushScreen(fragment, null);
   }
 
   public void pushScreen(Fragment fragment, @Nullable Bundle options) {
     FragmentTransaction ft = activity.getSupportFragmentManager().beginTransaction()
-            .setAllowOptimization(true);
+            .setReorderingAllowed(true);
     Fragment currentFragment = getCurrentFragment();
     if (currentFragment == null) {
       throw new IllegalStateException("There is no current fragment. You must present one first.");
     }
 
     if (ViewUtils.isAtLeastLollipop() && options != null && options.containsKey(TRANSITION_GROUP)) {
-        setupFragmentForSharedElement(currentFragment,  fragment, ft, options);
+      setupFragmentForSharedElement(currentFragment,  fragment, ft, options);
     } else {
-      PresentAnimation anim = PresentAnimation.Push;
+      PresentAnimation anim = PresentAnimation.Fade;
       ft.setCustomAnimations(anim.enter, anim.exit, anim.popEnter, anim.popExit);
     }
     BackStack bsi = getCurrentBackStack();
+
+    if (bsi == null) {
+      bsi = new BackStack(getNextStackTag(), null, null);
+      backStacks.push(bsi);
+    }
+
     ft
-            .detach(currentFragment)
             .add(container.getId(), fragment)
-            .addToBackStack(null)
+            .addToBackStack(bsi.getTag())
             .commit();
-    bsi.pushFragment(fragment);
+    bsi.pushFragment();
+    Log.d(TAG, toString());
+
+    if (currentFragment instanceof ReactNativeFragment) {
+      ((ReactNativeFragment) currentFragment).emitOnDisappear();
+    }
+  }
+
+  public void resetTo(Fragment fragment, @Nullable Bundle options) {
+    final boolean addToAndroidBackStack = options != null &&
+            options.containsKey(ADD_TO_BACKSTACK_OPTION) &&
+            options.getBoolean(ADD_TO_BACKSTACK_OPTION);
+
+    final FragmentManager fragmentManager = activity.getSupportFragmentManager();
+    final FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction()
+            .setReorderingAllowed(true);
+
+    PresentAnimation anim = PresentAnimation.Fade;
+    fragmentTransaction.setCustomAnimations(anim.enter, anim.exit, anim.popEnter, anim.popExit);
+
+    BackStack bsi = getCurrentBackStack();
+
+    if (bsi == null) {
+      bsi = new BackStack(getNextStackTag(), null, null);
+      backStacks.push(bsi);
+    }
+
+    if (!addToAndroidBackStack) {
+      while (!bsi.isEmpty()) {
+        bsi.popFragment();
+      }
+
+      fragmentManager.popBackStackImmediate();
+    }
+
+    fragmentTransaction.replace(container.getId(), fragment);
+
+    if (addToAndroidBackStack) {
+      fragmentTransaction.addToBackStack(bsi.getTag());
+    }
+    // When resetting we don't care about state loss
+    fragmentTransaction.commitAllowingStateLoss();
+
+    bsi.pushFragment();
     Log.d(TAG, toString());
   }
 
@@ -140,10 +194,10 @@ public class ScreenCoordinator {
   }
 
   public void presentScreen(
-      String moduleName,
-      @Nullable Bundle props,
-      @Nullable Bundle options,
-      @Nullable Promise promise) {
+          String moduleName,
+          @Nullable Bundle props,
+          @Nullable Bundle options,
+          @Nullable Promise promise) {
     // TODO: use options
     Fragment fragment = ReactNativeFragment.newInstance(moduleName, props);
     presentScreen(fragment, PresentAnimation.Modal, promise);
@@ -175,24 +229,21 @@ public class ScreenCoordinator {
     if (fragment == null) {
       throw new IllegalArgumentException("Fragment must not be null.");
     }
+
     BackStack bsi = new BackStack(getNextStackTag(), anim, promise);
     backStacks.push(bsi);
+
     // TODO: dry this up with pushScreen
     FragmentTransaction ft = activity.getSupportFragmentManager().beginTransaction()
-        .setAllowOptimization(true)
-        .setCustomAnimations(anim.enter, anim.exit, anim.popEnter, anim.popExit);
+            .setAllowOptimization(true)
+            .setCustomAnimations(anim.enter, anim.exit, anim.popEnter, anim.popExit);
 
-    Fragment currentFragment = getCurrentFragment();
-    if (currentFragment != null && !isFragmentTranslucent(fragment)) {
-      container.willDetachCurrentScreen();
-      ft.detach(currentFragment);
-    }
     ft
-        .add(container.getId(), fragment)
-        .addToBackStack(bsi.getTag())
-        .commit();
+            .add(container.getId(), fragment)
+            .addToBackStack(bsi.getTag())
+            .commit();
     activity.getSupportFragmentManager().executePendingTransactions();
-    bsi.pushFragment(fragment);
+    bsi.pushFragment();
     Log.d(TAG, toString());
   }
 
@@ -204,17 +255,60 @@ public class ScreenCoordinator {
   }
 
   public void onBackPressed() {
+    if (getCurrentFragment() != null && getCurrentFragment() instanceof ReactNativeFragment) {
+      final ReactNativeFragment fragment = (ReactNativeFragment) getCurrentFragment();
+
+      if (fragment.isOnBackPressImplemented()) {
+        fragment.onBackPressed();
+        return;
+      }
+
+    }
     pop();
   }
 
   public void pop() {
-    BackStack bsi = getCurrentBackStack();
+    final BackStack bsi = getCurrentBackStack();
+
+//    View decorView = activity.getWindow().getDecorView();
+//    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+//      decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+//        @Override
+//        public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+//          WindowInsets defaultInsets = null;
+//          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+//            defaultInsets = v.onApplyWindowInsets(insets);
+//            return defaultInsets.replaceSystemWindowInsets(
+//                    defaultInsets.getSystemWindowInsetLeft(),
+//                    defaultInsets.getSystemWindowInsetTop(),
+//                    defaultInsets.getSystemWindowInsetRight(),
+//                    defaultInsets.getSystemWindowInsetBottom());
+//          }
+//
+//          return null;
+//        }
+//      });
+//    }
+
+//    ViewCompat.requestApplyInsets(decorView);
+
+    // When using resetTo and double tapping the back button, we crash on the second tap because
+    // there is no back stack.
+    // Not the best way of fixing this - ideally the backstack state should mirror the state of the
+    // FragmentManager
+    if (bsi == null) {
+      Log.w(TAG, "Attempting to call ScreenCoordinator.pop() when BackStack is null");
+      return;
+    }
+
     if (bsi.getSize() == 1) {
       dismiss();
       return;
     }
     bsi.popFragment();
-    activity.getSupportFragmentManager().popBackStack();
+    // We use popBackStackImmediate() here to force the pop to happen synchronously. This is so the
+    // user doesn't crash the app by double tapping the back button when navigating forward.
+    activity.getSupportFragmentManager().popBackStackImmediate();
     Log.d(TAG, toString());
   }
 
@@ -223,10 +317,11 @@ public class ScreenCoordinator {
   }
 
   public void dismiss(int resultCode, Map<String, Object> payload) {
-    dismiss(resultCode, payload, true);
+    // BREAKING UCL exit after dismissing last activity
+    dismiss(resultCode, payload, activity instanceof ReactActivity);
   }
 
-  private void dismiss(int resultCode, Map<String, Object> payload, boolean finishIfEmpty) {
+  public void dismiss(int resultCode, Map<String, Object> payload, boolean finishIfEmpty) {
     BackStack bsi = backStacks.pop();
     Promise promise = bsi.getPromise();
     deliverPromise(promise, resultCode, payload);
@@ -276,11 +371,16 @@ public class ScreenCoordinator {
   }
 
   @Nullable
-  private Fragment getCurrentFragment() {
+  public Fragment getCurrentFragment() {
     return activity.getSupportFragmentManager().findFragmentById(container.getId());
   }
 
+  @Nullable
   private BackStack getCurrentBackStack() {
+    if (backStacks.isEmpty()) {
+      return null;
+    }
+
     return backStacks.peek();
   }
 
