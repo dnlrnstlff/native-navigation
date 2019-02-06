@@ -8,8 +8,9 @@
 
 import Foundation
 import UIKit
-import React
-
+#if !NN_NO_COCOAPODS
+  import React
+#endif
 
 @objc public protocol ReactNavigationImplementation: class {
 
@@ -39,7 +40,7 @@ import React
 
 // this is a convenience class to allow us to easily assign lambdas as press handlers
 class BlockBarButtonItem: UIBarButtonItem {
-  var actionHandler: (() -> Void)?
+  var actionHandler: ((Void) -> Void)?
 
   convenience init(title: String?, style: UIBarButtonItemStyle) {
     self.init(title: title, style: style, target: nil, action: #selector(barButtonItemPressed))
@@ -63,7 +64,7 @@ class BlockBarButtonItem: UIBarButtonItem {
     style: UIBarButtonItemStyle,
     enabled: Bool?,
     tintColor: UIColor?,
-    titleTextAttributes: [NSAttributedStringKey: Any]?
+    titleTextAttributes: [String: Any]?
   ) {
     if let barButtonSystemItem = barButtonSystemItem {
       self.init(barButtonSystemItem: barButtonSystemItem)
@@ -81,10 +82,11 @@ class BlockBarButtonItem: UIBarButtonItem {
     if let titleTextAttributes = titleTextAttributes {
       // TODO(lmr): what about other control states? do we care?
       setTitleTextAttributes(titleTextAttributes, for: .normal)
+      setTitleTextAttributes(titleTextAttributes, for: .selected)
     }
   }
 
-  @objc func barButtonItemPressed(sender: UIBarButtonItem) {
+  func barButtonItemPressed(sender: UIBarButtonItem) {
     actionHandler?()
   }
 }
@@ -248,19 +250,19 @@ func statusBarAnimationFromString(_ string: String?) -> UIStatusBarAnimation {
 func textAttributesFromPrefix(
   _ prefix: String,
   _ props: [String: AnyObject]
-) -> [NSAttributedStringKey: Any]? {
-  var attributes: [NSAttributedStringKey: Any] = [:]
+) -> [String: Any]? {
+  var attributes: [String: Any] = [:]
   if let color = colorForKey("\(prefix)Color", props) {
-    attributes[NSAttributedStringKey.foregroundColor] = color
+    attributes[NSForegroundColorAttributeName] = color
   } else if let color = colorForKey("foregroundColor", props) {
-    attributes[NSAttributedStringKey.foregroundColor] = color
+    attributes[NSForegroundColorAttributeName] = color
   }
   let fontName = stringForKey("\(prefix)FontName", props)
   let fontSize = floatForKey("\(prefix)FontSize", props)
   // TODO(lmr): use system font if no fontname is given
   if let name = fontName, let size = fontSize {
     if let font = UIFont(name: name, size: size) {
-      attributes[NSAttributedStringKey.font] = font
+      attributes[NSFontAttributeName] = font
     }
   }
   return attributes.count == 0 ? nil : attributes
@@ -373,16 +375,16 @@ open class DefaultReactNavigationImplementation: ReactNavigationImplementation {
       hasPrompt = true
     }
     if let navController = navigationController {
-      return navController.navigationBar.frame.height + (statusBarHidden ? 0 : 20)
+      return navController.navigationBar.frame.height + (statusBarHidden ? 0 : UIApplication.shared.statusBarFrame.height)
     }
     // make a best guess based on config
-    return (statusBarHidden ? 0 : 20) + (navBarHidden ? 0 : 44) + (hasPrompt ? 30 : 0)
+    return (statusBarHidden ? 0 :  UIApplication.shared.statusBarFrame.height) + (navBarHidden ? 0 : 44) + (hasPrompt ? 30 : 0)
   }
 
   public func makeNavigationController(rootViewController: UIViewController) -> UINavigationController {
     // TODO(lmr): pass initialConfig
     // TODO(lmr): do we want to provide a way to customize the NavigationBar class?
-    return UINavigationController(rootViewController: rootViewController)
+    return ReactNavigationController(rootViewController: rootViewController)
   }
 
   public func reconcileTabConfig(
@@ -468,6 +470,19 @@ open class DefaultReactNavigationImplementation: ReactNavigationImplementation {
     // itemWidth: float
 
   }
+  
+  private func getOrientationFromString(_ orientation: String?) -> UIInterfaceOrientationMask {
+    switch orientation {
+      case "portrait"?: return .portrait;
+      case "landscapeLeft"?: return .landscapeLeft;
+      case "landscapeRight"?: return .landscapeRight;
+      case "portraitUpsideDown"?: return .portraitUpsideDown;
+      case "portraitUpsideDown"?: return .portraitUpsideDown;
+      case "allButUpsideDown"?: return .allButUpsideDown;
+      case "all"?: return .all;
+      default: return .portrait;
+    }
+  }
 
   public func reconcileScreenConfig(
     viewController: ReactViewController,
@@ -475,6 +490,9 @@ open class DefaultReactNavigationImplementation: ReactNavigationImplementation {
     prev: [String: AnyObject],
     next: [String: AnyObject]
   ) {
+    viewController.setOrientation(orientation: getOrientationFromString(stringForKey("orientation", next)))
+
+    
     // status bar
     if let statusBarHidden = boolForKey("statusBarHidden", next) {
       viewController.setStatusBarHidden(statusBarHidden)
@@ -500,6 +518,9 @@ open class DefaultReactNavigationImplementation: ReactNavigationImplementation {
 
     let navItem = viewController.navigationItem
 
+    if let backButtonTitle = stringForKey("backButtonTitle", next) {
+        navItem.backBarButtonItem = UIBarButtonItem(title: backButtonTitle, style:.plain, target:nil, action:nil)
+    }
 
     if let titleView = titleAndSubtitleViewFromProps(next) {
       if let title = stringForKey("title", next) {
@@ -573,6 +594,11 @@ open class DefaultReactNavigationImplementation: ReactNavigationImplementation {
       if let hidden = boolForKey("hidden", next) {
         navController.setNavigationBarHidden(hidden, animated: true)
       }
+        
+      if let interactivePopGestureEnabled = boolForKey("interactivePopGestureEnabled", next), interactivePopGestureEnabled {
+        navController.interactivePopGestureRecognizer?.delegate = nil
+        navController.interactivePopGestureRecognizer?.isEnabled = true
+      }
 
       if let isToolbarHidden = boolForKey("isToolbarHidden", next) {
         navController.setToolbarHidden(isToolbarHidden, animated: true)
@@ -606,6 +632,19 @@ open class DefaultReactNavigationImplementation: ReactNavigationImplementation {
 
       if let translucent = boolForKey("translucent", next) {
         navBar.isTranslucent = translucent
+      }
+
+      if let backgroundAssetNameValue = next["backgroundAssetName"] {
+        if let backgroundAssetName = backgroundAssetNameValue as? String {
+            if let image = UIImage(named: backgroundAssetName) {
+                navBar.setBackgroundImage(image.resizableImage(withCapInsets: UIEdgeInsets.zero, resizingMode: .stretch), for: .default)
+            }
+            navBar.isTranslucent = false
+            navBar.alpha = 1.0
+        } else {
+          navBar.setBackgroundImage(UIImage(), for:.default)
+          navBar.shadowImage = UIImage()
+        }
       }
 
       //    navigationController?.navigationBar.barStyle = .blackTranslucent

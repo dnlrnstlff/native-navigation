@@ -1,6 +1,6 @@
 # `<Navigator.Config />`
 
-The `Config` component is a component that is used to configure the current screen and navigation
+The `Config` component is a a component that is used to configure the current screen and navigation
 bar. The component itself does not result in any UI being rendered in the current react view hierarchy,
 but instead is used as a declarative interface for the screen.
 
@@ -180,34 +180,10 @@ type Button = {
   
   // ios-only
   style: 'plain' | 'default';
-  systemItem: SystemItem;
+  systemItem: 'done' | 'cancel' | 'edit' | 'save' | 'add' | 'flexibleSpace' | 'compose' | 'reply' | 'action' | 'organize' | 'bookmarks' | 'search' | 'refresh' | 'stop' | 'camera' | 'trash' | 'play' | 'pause' | 'rewind' | 'fastForward' | 'undo' | 'redo' | 'pageCurl';
 
   // android-only
 };
-
-type SystemItem = 'done' 
-  | 'cancel' 
-  | 'edit' 
-  | 'save' 
-  | 'add' 
-  | 'flexibleSpace' 
-  | 'compose' 
-  | 'reply' 
-  | 'action' 
-  | 'organize' 
-  | 'bookmarks' 
-  | 'search' 
-  | 'refresh' 
-  | 'stop' 
-  | 'camera' 
-  | 'trash' 
-  | 'play' 
-  | 'pause' 
-  | 'rewind' 
-  | 'fastForward' 
-  | 'undo' 
-  | 'redo' 
-  | 'pageCurl'
 
 type NavigatorConfigProps = {
 
@@ -220,7 +196,6 @@ type NavigatorConfigProps = {
   rightTitle: string;
   rightImage: Image;
   rightButtons: Array<Button>;
-  leftButtons: Array<Button>;
   screenColor: Color;
   hidden: boolean;
   backgroundColor: Color; 
@@ -235,13 +210,12 @@ type NavigatorConfigProps = {
   titleFontSize: number;
   subtitleFontName: string;
   subtitleFontSize: number;
-  leftTitle: string;
-  leftImage: Image;
   
   // android-only-but-should-share
   navIcon: Image;
   logo: Image;
   textAlign: 'left' | 'center' | 'right';
+  leftButtons: Array<Button>;
   
   // ios-only
   prompt: string;
@@ -252,9 +226,9 @@ type NavigatorConfigProps = {
   isToolbarHidden: boolean;
   backIndicatorTransitionMaskImage: Image;
   translucent: boolean;
-  rightSystemItem: SystemItem;
-  leftSystemItem: SystemItem;
-  
+  backButtonTitle: string;
+  interactivePopGestureEnabled: boolean;
+
   // android-only
   statusBarColor: Color;
   statusBarTranslucent: boolean;

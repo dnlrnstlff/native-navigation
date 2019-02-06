@@ -8,14 +8,13 @@
 
 import Foundation
 
-
 public class ClosureWrapper : NSObject {
-  let _callback : () -> Void
-  init(callback : @escaping () -> Void) {
+  let _callback : (Void) -> Void
+  init(callback : @escaping (Void) -> Void) {
     _callback = callback
   }
 
-  @objc public func invoke() {
+  public func invoke() {
     _callback()
   }
 }
@@ -23,7 +22,7 @@ public class ClosureWrapper : NSObject {
 var AssociatedClosure: UInt8 = 0
 
 extension UIControl {
-  func nn_addAction(forControlEvents events: UIControlEvents, withCallback callback: @escaping () -> Void) {
+  func nn_addAction(forControlEvents events: UIControlEvents, withCallback callback: @escaping (Void) -> Void) {
     let wrapper = ClosureWrapper(callback: callback)
     addTarget(wrapper, action: #selector(ClosureWrapper.invoke), for: events)
     objc_setAssociatedObject(self, &AssociatedClosure, wrapper, objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN_NONATOMIC)
